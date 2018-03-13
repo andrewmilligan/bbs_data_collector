@@ -214,10 +214,10 @@ class BBS:
     print("All records committed.")
 
   def createAllTables(self):
-    #self.createFiftyStopTable()
+    self.createFiftyStopTable()
     self.createMetaTxtTables()
     self.createMetaCsvTables()
 
   def fetchAndCreateAll(self):
-    #self.fetchAllFiles()
+    self.fetchAllFiles()
     self.createAllTables()
