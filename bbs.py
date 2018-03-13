@@ -31,6 +31,13 @@ class BBS:
         'Fifty4.zip', 'Fifty5.zip', 'Fifty6.zip', 'Fifty7.zip', 'Fifty8.zip',
         'Fifty9.zip', 'Fifty10.zip' ]
 
+    self.meta_txt_uri = ''
+    self.meta_txt_files = [ 'SpeciesList.txt', 'BBSStrata.txt', 'BCR.txt',
+        'RunProtocolID.txt' ]
+
+    self.meta_csv_uri = ''
+    self.meta_csv_files = 
+
     self.DB = os.path.join(DIR, "bird_survey_db.sqlite3")
 
     self.fifty_stop_table = "fifty_stops"
@@ -84,5 +91,133 @@ class BBS:
   def fetchMetaCsvFiles(self):
     self.fetchFileList(self.meta_csv_uri, self.meta_csv_files,
         self.META_DIR, self.META_DIR)
-      
 
+  def fetchAllFiles(self):
+    self.initDirectories()
+    self.fetchFiftyStopFiles()
+    self.fetchMetaTxtFiles()
+    self.fetchMetaCsvFiles()
+
+  def createFiftyStopTable(self):
+    con = sqlite3.connect(DB)
+    cur = con.cursor()
+
+    print("Creating table...")
+    create_cmd = "CREATE TABLE IF NOT EXISTS {tn} ({id_name} INTEGER PRIMARY KEY)"
+    cur.execute(create_cmd.format(tn=self.fifty_stop_table, id_name=self.ID_VAR))
+
+    print("Adding columns...")
+    add_col_cmd = "ALTER TABLE {tn} ADD COLUMN '{cn}' {ct}"
+    for col in self.FIFTY_STOP_TEXT_COLS:
+      cur.execute(add_col_cmd.format(tn=table_name, cn=col, ct="TEXT"))
+    for col in self.FIFTY_STOP_STOP_COLS:
+      cur.execute(add_col_cmd.format(tn=table_name, cn=col, ct="INTEGER"))
+
+    csv_files = glob.glob(os.path.join(self.FIFTY_STOP_DIR, '*.csv'))
+    for csv_file in csv_files:
+      db_rows = []
+      print("Parsing CSV file {}".format(csv_file))
+      with open(csv_file, 'rb') as f:
+        rows = csv.DictReader(f)
+      for row in rows:
+        db_rows.append(tuple([row[key] for key in rows.fieldnames]))
+
+      print("Inserting {} records into the database...".format(len(db_rows)))
+      insert_command = "INSERT INTO {tn} ({cns}) VALUES ({qs})".format(
+          tn=table_name,
+          cns=', '.join(self.FIFTY_STOP_COLS),
+          qs=', '.join(['?' for i in self.FIFTY_STOP_COLS]))
+      cur.executemany(insert_command, db_rows)
+      print("Records inserted.")
+
+    print("Committing changes...")
+    con.commit()
+    con.close()
+    print("All records committed.")
+
+
+  def createMetaTxtTables(self):
+    con = sqlite3.connect(DB)
+    cur = con.cursor()
+
+    txt_files = glob.glob(os.path.join(self.META_DIR, '*.txt'))
+    for txt_file in txt_files:
+      tabs = table.TableFactory().tablesFromFile(txt_file)
+      for tab in tabs:
+        print("Creating table for {}...".format(os.path.basename(txt_file)))
+        create_cmd = "CREATE TABLE IF NOT EXISTS {tn} ({id_name} INTEGER PRIMARY KEY)"
+        cur.execute(create_cmd.format(
+          tn=tab.name, id_name=self.ID_VAR))
+
+        print("Adding columns...")
+        for col in tab.headers:
+          try:
+            cur.execute("ALTER TABLE {tn} ADD COLUMN '{cn}' {ct}"\
+                      .format(tn=tab.name, cn=col, ct="TEXT"))
+          except sqlite3.OperationalError as e:
+            print("WARNING: {}".format(e))
+
+        print("Inserting {} records into the database...".format(len(tab.rows)))
+        insert_command = "INSERT INTO {tn} ({cns}) VALUES ({qs})".format(
+            tn=tab.name,
+            cns=', '.join(tab.headers),
+            qs=', '.join(['?' for i in tab.headers]))
+        cur.executemany(insert_command, db_rows)
+        print("Records inserted.")
+
+    print("Committing changes...")
+    con.commit()
+    con.close()
+    print("All records committed.")
+                
+
+  def createMetaCsvTables(self):
+    con = sqlite3.connect(DB)
+    cur = con.cursor()
+
+    csv_files = glob.glob(os.path.join(self.META_DIR, '*.csv'))
+    for csv_file in csv_files:
+
+      tab_name = '_'.join(os.path.basename(csv_file).split('.')[:-1])
+      tab_name = tables.TableFactory().cleanHeader(tab_name)
+
+      with open(csv_file, 'rb') as f:
+        rows = csv.DictReader(f)
+      db_headers = table.TableFactory().cleanHeaders(rows.fieldnames)
+      db_rows = []
+      for row in rows:
+        db_rows.append(tuple([row[key] for key in rows.fieldnames]))
+
+      print("Creating table for {}...".format(os.path.basename(csv_file)))
+      create_cmd = "CREATE TABLE IF NOT EXISTS {tn} ({id_name} INTEGER PRIMARY KEY)"
+      cur.execute(create_cmd.format(tn=tab_name, id_name=self.ID_VAR))
+
+      print("Adding columns...")
+      for col in db_headers:
+        try:
+          cur.execute("ALTER TABLE {tn} ADD COLUMN '{cn}' {ct}"\
+                    .format(tn=tab_name, cn=col, ct="TEXT"))
+        except sqlite3.OperationalError as e:
+          print("WARNING: {}".format(e))
+
+      print("Inserting {} records into the database...".format(len(db_rows)))
+      insert_command = "INSERT INTO {tn} ({cns}) VALUES ({qs})".format(
+          tn=tab_name,
+          cns=', '.join(db_headers),
+          qs=', '.join(['?' for i in db_headers]))
+      cur.executemany(insert_command, db_rows)
+      print("Records inserted.")
+
+    print("Committing changes...")
+    con.commit()
+    con.close()
+    print("All records committed.")
+
+  def createAllTables(self):
+    self.createFiftyStopTable()
+    self.createMetaTxtTables()
+    self.createMetaCsvTables()
+
+  def fetchAndCreateAll(self):
+    self.fetchAllFiles()
+    self.createAllTables()
