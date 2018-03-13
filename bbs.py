@@ -18,9 +18,9 @@ class BBS:
         raise ValueError("working directory '{}' does not exist".format(wd))
       self.DIR = os.path.abspath(wd)
 
-    self.DATA_DIR = os.path.join(DIR, 'data')
-    self.FIFTY_STOP_DIR = os.path.join(DATA_DIR, 'fifty_stops')
-    self.META_DIR = os.path.join(DATA_DIR, 'meta')
+    self.DATA_DIR = os.path.join(self.DIR, 'data')
+    self.FIFTY_STOP_DIR = os.path.join(self.DATA_DIR, 'fifty_stops')
+    self.META_DIR = os.path.join(self.DATA_DIR, 'meta')
     self.DIRECTORIES = [self.DATA_DIR, self.FIFTY_STOP_DIR, self.META_DIR]
 
 
@@ -36,9 +36,9 @@ class BBS:
         'RunProtocolID.txt' ]
 
     self.meta_csv_uri = ''
-    self.meta_csv_files = 
+    self.meta_csv_files = [ 'Weather.zip', 'Routes.zip' ]
 
-    self.DB = os.path.join(DIR, "bird_survey_db.sqlite3")
+    self.DB = os.path.join(self.DIR, "bird_survey_db.sqlite3")
 
     self.fifty_stop_table = "fifty_stops"
     self.ID_VAR = "id"
@@ -55,7 +55,7 @@ class BBS:
       if not os.path.isdir(d):
         os.mkdir(d)
 
-  def makeAbsolutePath(self, *rel_path_pieces):
+  def makeAbsoluteURI(self, *rel_path_pieces):
     return '/'.join([self.base_uri] + [r for r in rel_path_pieces if r])
 
   def unzipFile(self, file_local, unzip_dir):
@@ -68,7 +68,7 @@ class BBS:
     print("Done.")
 
   def fetchFile(self, file_uri, file_local, unzip_dir=None):
-    print("Downloading: {}".format(file_url))
+    print("Downloading: {}".format(file_uri))
     wget.download(file_uri, file_local)
     print("File downloaded to {}.".format(file_local))
     if unzip_dir is not None:
@@ -99,7 +99,7 @@ class BBS:
     self.fetchMetaCsvFiles()
 
   def createFiftyStopTable(self):
-    con = sqlite3.connect(DB)
+    con = sqlite3.connect(self.DB)
     cur = con.cursor()
 
     print("Creating table...")
@@ -109,9 +109,9 @@ class BBS:
     print("Adding columns...")
     add_col_cmd = "ALTER TABLE {tn} ADD COLUMN '{cn}' {ct}"
     for col in self.FIFTY_STOP_TEXT_COLS:
-      cur.execute(add_col_cmd.format(tn=table_name, cn=col, ct="TEXT"))
+      cur.execute(add_col_cmd.format(tn=self.fifty_stop_table, cn=col, ct="TEXT"))
     for col in self.FIFTY_STOP_STOP_COLS:
-      cur.execute(add_col_cmd.format(tn=table_name, cn=col, ct="INTEGER"))
+      cur.execute(add_col_cmd.format(tn=self.fifty_stop_table, cn=col, ct="INTEGER"))
 
     csv_files = glob.glob(os.path.join(self.FIFTY_STOP_DIR, '*.csv'))
     for csv_file in csv_files:
@@ -124,7 +124,7 @@ class BBS:
 
       print("Inserting {} records into the database...".format(len(db_rows)))
       insert_command = "INSERT INTO {tn} ({cns}) VALUES ({qs})".format(
-          tn=table_name,
+          tn=self.fifty_stop_table,
           cns=', '.join(self.FIFTY_STOP_COLS),
           qs=', '.join(['?' for i in self.FIFTY_STOP_COLS]))
       cur.executemany(insert_command, db_rows)
@@ -137,7 +137,7 @@ class BBS:
 
 
   def createMetaTxtTables(self):
-    con = sqlite3.connect(DB)
+    con = sqlite3.connect(self.DB)
     cur = con.cursor()
 
     txt_files = glob.glob(os.path.join(self.META_DIR, '*.txt'))
@@ -172,7 +172,7 @@ class BBS:
                 
 
   def createMetaCsvTables(self):
-    con = sqlite3.connect(DB)
+    con = sqlite3.connect(self.DB)
     cur = con.cursor()
 
     csv_files = glob.glob(os.path.join(self.META_DIR, '*.csv'))
@@ -219,5 +219,5 @@ class BBS:
     self.createMetaCsvTables()
 
   def fetchAndCreateAll(self):
-    self.fetchAllFiles()
+    #self.fetchAllFiles()
     self.createAllTables()
