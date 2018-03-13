@@ -7,10 +7,22 @@ import csv
 import table
 
 
+## BBS
+#
+#  This is the main class to interface with the data -- fetching the actual
+#  files and storing them locally in a database.
+#
 class BBS:
 
+  ## __init__
+  #
+  #  The initializer sets up a bunch of default settings. After creating the
+  #  object you can overwrite these settings to change the behavior of the
+  #  object. (TODO: make a better way to change settings.)
+  #
   def __init__(self, wd=None):
 
+    # Set up the working directory to store stuff in
     if wd is None:
       self.DIR = os.getcwd()
     else:
@@ -18,28 +30,34 @@ class BBS:
         raise ValueError("working directory '{}' does not exist".format(wd))
       self.DIR = os.path.abspath(wd)
 
+    # Set up the directory structure:
+    #  data/
+    #    |- fifty_stops/ (the actual data files)
+    #    |- meta/ (files with metadata about data formats)
     self.DATA_DIR = os.path.join(self.DIR, 'data')
     self.FIFTY_STOP_DIR = os.path.join(self.DATA_DIR, 'fifty_stops')
     self.META_DIR = os.path.join(self.DATA_DIR, 'meta')
-    self.DIRECTORIES = [self.DATA_DIR, self.FIFTY_STOP_DIR, self.META_DIR]
 
-
+    # Base URI to fetch the files from
     self.base_uri = 'ftp://ftpext.usgs.gov/pub/er/md/laurel/BBS/DataFiles'
     
+    # URI info to fetch the actual data files
     self.fifty_stop_uri = '50-StopData/1997ToPresent_SurveyWide'
     self.fifty_stop_files = [ 'Fifty1.zip', 'Fifty2.zip', 'Fifty3.zip',
         'Fifty4.zip', 'Fifty5.zip', 'Fifty6.zip', 'Fifty7.zip', 'Fifty8.zip',
         'Fifty9.zip', 'Fifty10.zip' ]
 
+    # URI info to fetch the .txt meta files
     self.meta_txt_uri = ''
     self.meta_txt_files = [ 'SpeciesList.txt', 'BBSStrata.txt', 'BCR.txt',
         'RunProtocolID.txt' ]
 
+    # URI info to fetch the .csv meta files
     self.meta_csv_uri = ''
     self.meta_csv_files = [ 'Weather.zip', 'Routes.zip' ]
 
+    # Database configuration stuff
     self.DB = os.path.join(self.DIR, "bird_survey_db.sqlite3")
-
     self.fifty_stop_table = "fifty_stops"
     self.ID_VAR = "id"
     self.FIFTY_STOP_TEXT_COLS = [
@@ -49,15 +67,30 @@ class BBS:
     self.FIFTY_STOP_COLS = self.FIFTY_STOP_TEXT_COLS + self.FIFTY_STOP_STOP_COLS
 
 
-
+  ## initDirectories
+  #
+  #  Helper function to create the local directory structure if it doesn't
+  #  already exist
+  #
   def initDirectories(self):
-    for d in self.DIRECTORIES:
+    for d in [self.DATA_DIR, self.FIFTY_STOP_DIR, self.META_DIR]:
       if not os.path.isdir(d):
         os.mkdir(d)
 
+
+  ## makeAbsoluteURI
+  #
+  #  Helper function to create a complete URI to fetch a file from with pieces
+  #  of a relative URI
+  #
   def makeAbsoluteURI(self, *rel_path_pieces):
     return '/'.join([self.base_uri] + [r for r in rel_path_pieces if r])
 
+
+  ## unzipFile
+  #
+  #  Helper function to unzip a .zip file that has been downloaded.
+  #
   def unzipFile(self, file_local, unzip_dir):
     if not os.path.isdir(unzip_dir):
       raise IOError("unzip target dir '{}' does not exist".format(unzip_dir))
@@ -67,6 +100,13 @@ class BBS:
     zip_ref.close()
     print("Done.")
 
+
+  ## fetchFile
+  #
+  #  Helper function to download a file from a given URI to a specified place
+  #  on disc. If you want the file to be unzipped specify the directory to
+  #  unzip into.
+  #
   def fetchFile(self, file_uri, file_local, unzip_dir=None):
     print("Downloading: {}".format(file_uri))
     wget.download(file_uri, file_local)
@@ -74,24 +114,49 @@ class BBS:
     if unzip_dir is not None:
       self.unzipFile(file_local, unzip_dir)
 
+
+  ## fetchFileList
+  #
+  #  Helper function to fetch a list of files from the same remote directory.
+  #
   def fetchFileList(self, uri, files, local_dir, unzip_dir=None):
     for f in files:
       file_uri = self.makeAbsoluteURI(uri, f)
       file_local = os.path.join(local_dir, f)
       self.fetchFile(file_uri, file_local, unzip_dir=unzip_dir)
 
+
+  ## fetchFiftyStopFiles
+  #
+  #  Helper function to fetch the actual fifty stop data files.
+  #
   def fetchFiftyStopFiles(self):
     self.fetchFileList(self.fifty_stop_uri, self.fifty_stop_files,
         self.FIFTY_STOP_DIR, self.FIFTY_STOP_DIR)
 
+  
+  ## fetchMetaTxtFiles
+  #
+  #  Helper function to fetch the meta .txt files.
+  #
   def fetchMetaTxtFiles(self):
     self.fetchFileList(self.meta_txt_uri, self.meta_txt_files,
         self.META_DIR)
 
+  
+  ## fetchMetaCsvFiles
+  #
+  #  Helper function to fetch the meta .csv files.
+  #
   def fetchMetaCsvFiles(self):
     self.fetchFileList(self.meta_csv_uri, self.meta_csv_files,
         self.META_DIR, self.META_DIR)
 
+
+  ## fetchAllFiles
+  #
+  #  Helper function to fetch all of the relevant files.
+  #
   def fetchAllFiles(self):
     self.initDirectories()
     self.fetchFiftyStopFiles()
