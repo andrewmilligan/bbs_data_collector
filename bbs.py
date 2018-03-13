@@ -119,8 +119,8 @@ class BBS:
       print("Parsing CSV file {}".format(csv_file))
       with open(csv_file, 'rb') as f:
         rows = csv.DictReader(f)
-      for row in rows:
-        db_rows.append(tuple([row[key] for key in rows.fieldnames]))
+        for row in rows:
+          db_rows.append(tuple([row[key] for key in rows.fieldnames]))
 
       print("Inserting {} records into the database...".format(len(db_rows)))
       insert_command = "INSERT INTO {tn} ({cns}) VALUES ({qs})".format(
@@ -162,7 +162,7 @@ class BBS:
             tn=tab.name,
             cns=', '.join(tab.headers),
             qs=', '.join(['?' for i in tab.headers]))
-        cur.executemany(insert_command, db_rows)
+        cur.executemany(insert_command, tab.rows)
         print("Records inserted.")
 
     print("Committing changes...")
@@ -179,14 +179,14 @@ class BBS:
     for csv_file in csv_files:
 
       tab_name = '_'.join(os.path.basename(csv_file).split('.')[:-1])
-      tab_name = tables.TableFactory().cleanHeader(tab_name)
+      tab_name = table.TableFactory().cleanHeader(tab_name)
 
       with open(csv_file, 'rb') as f:
         rows = csv.DictReader(f)
-      db_headers = table.TableFactory().cleanHeaders(rows.fieldnames)
-      db_rows = []
-      for row in rows:
-        db_rows.append(tuple([row[key] for key in rows.fieldnames]))
+        db_headers = table.TableFactory().cleanHeaders(rows.fieldnames)
+        db_rows = []
+        for row in rows:
+          db_rows.append(tuple([row[key].decode('latin-1') for key in rows.fieldnames]))
 
       print("Creating table for {}...".format(os.path.basename(csv_file)))
       create_cmd = "CREATE TABLE IF NOT EXISTS {tn} ({id_name} INTEGER PRIMARY KEY)"
@@ -214,7 +214,7 @@ class BBS:
     print("All records committed.")
 
   def createAllTables(self):
-    self.createFiftyStopTable()
+    #self.createFiftyStopTable()
     self.createMetaTxtTables()
     self.createMetaCsvTables()
 

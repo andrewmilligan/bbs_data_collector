@@ -25,7 +25,7 @@ class TableFactory:
   #
   #  Helper function to make sure that characters in header names are safe.
   #
-  def isCleanChar(c):
+  def isCleanChar(self, c):
     return (c >= 'a' and c <= 'z') or \
         (c >= 'A' and c <= 'Z') or \
         (c >= '0' and c <= '9')
@@ -37,7 +37,7 @@ class TableFactory:
   #
   #  TODO: handle special cases like "ORDER" better
   #
-  def cleanHeader(h):
+  def cleanHeader(self, h):
     h = ''.join([c for c in h if self.isCleanChar(c)])
     if h == "ORDER":
       h = h.capitalize() + 'X'
@@ -75,7 +75,7 @@ class TableFactory:
   #      and has length equal to or exceeding the widest cell in the column
   #    * a table may contain no lines consisting only of whitespace
   #  
-  def tablesFromLines(lines, table_name, table_ct=0):
+  def tablesFromLines(self, lines, table_name, table_ct=0):
     tabs = []
 
     # Find the horizontal rule to figure out the column spacing. If there is
@@ -137,7 +137,7 @@ class TableFactory:
   #  A convenience wrapper to parse a BBS meta .txt file directly. It uses the
   #  file name as the table name.
   #
-  def tablesFromFile(tab_file):
+  def tablesFromFile(self, tab_file):
     with open(tab_file, 'r') as f:
       lines = f.readlines()
     tab_name = '_'.join(os.path.basename(tab_file).split('.')[:-1])
