@@ -50,7 +50,7 @@ class BBS:
     # URI info to fetch the .txt meta files
     self.meta_txt_uri = ''
     self.meta_txt_files = [ 'SpeciesList.txt', 'BBSStrata.txt', 'BCR.txt',
-        'RunProtocolID.txt' ]
+        'RunProtocolID.txt', 'RegionCodes.txt', 'RouteInf.txt' ]
 
     # URI info to fetch the .csv meta files
     self.meta_csv_uri = ''
