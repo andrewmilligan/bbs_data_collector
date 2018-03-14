@@ -1,6 +1,7 @@
 import wget
 import zipfile
 import os
+import shutil
 import glob
 import sqlite3
 import csv
@@ -73,9 +74,12 @@ class BBS:
   #  already exist
   #
   def initDirectories(self):
+    if os.path.isfile(self.DB):
+      os.remove(self.DB)
     for d in [self.DATA_DIR, self.FIFTY_STOP_DIR, self.META_DIR]:
-      if not os.path.isdir(d):
-        os.mkdir(d)
+      if os.path.isdir(d):
+        shutil.rmtree(d)
+      os.mkdir(d)
 
 
   ## makeAbsoluteURI
