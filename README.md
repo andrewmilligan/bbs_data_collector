@@ -22,9 +22,21 @@ The `meta` directory contains the downloaded metadata files, which include
 information about what various variable codes mean. The `fifty_stops` directory
 contains the actual data observations that make up the BBS fifty stop dataset.
 
+
 ## Usage
 
 The included `fetchBBS.py` script provides a very simple command-line interface
 for the `BBS` class. You can run it, setting the working directory from the
 command line with the `--working-directory` (`-w`) flag, determining which
 local directory to store the data files and the database in.
+
+
+## Requirements
+
+The only non-standard requirements are the [Python `wget` module][1] and
+[SQLite3][2].
+
+
+
+[1]: https://pypi.python.org/pypi/wget
+[2]: https://docs.python.org/2/library/sqlite3.html
