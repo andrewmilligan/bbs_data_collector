@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 import bbs
 import argparse
 import os
