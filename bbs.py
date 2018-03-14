@@ -190,7 +190,7 @@ class BBS:
       print("Inserting {} records into the database...".format(len(db_rows)))
       insert_command = "INSERT INTO {tn} ({cns}) VALUES ({qs})".format(
           tn=self.fifty_stop_table,
-          cns=', '.join(self.FIFTY_STOP_COLS),
+          cns=', '.join(["'{}'".format(c) for c in self.FIFTY_STOP_COLS]),
           qs=', '.join(['?' for i in self.FIFTY_STOP_COLS]))
       cur.executemany(insert_command, db_rows)
       print("Records inserted.")
@@ -225,7 +225,7 @@ class BBS:
         print("Inserting {} records into the database...".format(len(tab.rows)))
         insert_command = "INSERT INTO {tn} ({cns}) VALUES ({qs})".format(
             tn=tab.name,
-            cns=', '.join(tab.headers),
+            cns=', '.join(["'{}'".format(c) for c in tab.headers]),
             qs=', '.join(['?' for i in tab.headers]))
         cur.executemany(insert_command, tab.rows)
         print("Records inserted.")
@@ -268,7 +268,7 @@ class BBS:
       print("Inserting {} records into the database...".format(len(db_rows)))
       insert_command = "INSERT INTO {tn} ({cns}) VALUES ({qs})".format(
           tn=tab_name,
-          cns=', '.join(db_headers),
+          cns=', '.join(["'{}'".format(c) for c in db_headers]),
           qs=', '.join(['?' for i in db_headers]))
       cur.executemany(insert_command, db_rows)
       print("Records inserted.")

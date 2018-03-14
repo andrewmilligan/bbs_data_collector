@@ -35,12 +35,8 @@ class TableFactory:
   #  Helper function to strip out characters from a header name that aren't
   #  safe using the isCleanChar member function.
   #
-  #  TODO: handle special cases like "ORDER" better
-  #
   def cleanHeader(self, h):
     h = ''.join([c for c in h if self.isCleanChar(c)])
-    if h == "ORDER":
-      h = h.capitalize() + 'X'
     return h
 
   ## cleanHeaders
