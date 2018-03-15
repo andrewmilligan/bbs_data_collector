@@ -1,4 +1,4 @@
-import wget
+import urllib2
 import zipfile
 import os
 import shutil
@@ -113,7 +113,9 @@ class BBS:
   #
   def fetchFile(self, file_uri, file_local, unzip_dir=None):
     print("Downloading: {}".format(file_uri))
-    wget.download(file_uri, file_local)
+    with open(file_local, 'wb') as f:
+      response = urllib2.urlopen(file_uri)
+      f.write(response.read())
     print("File downloaded to {}.".format(file_local))
     if unzip_dir is not None:
       self.unzipFile(file_local, unzip_dir)
