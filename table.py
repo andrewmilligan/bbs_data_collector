@@ -7,10 +7,11 @@ import os
 #  representing the table rows.
 #
 class Table:
-  def __init__(self, name='', headers=[], rows=[]):
+  def __init__(self, name='', headers=[], rows=[], schema=[]):
     self.name = name
     self.headers = headers
     self.rows = rows
+    self.schema = schema
 
 
 ## TableFactory
@@ -56,6 +57,31 @@ class TableFactory:
       seen_headers.add(h)
     return clean_headers
 
+  ## inferTableSchema
+  #
+  #  Take a list of column headers and a list of column rows (iterables) and
+  #  use them to create a list of dicts with column name and column type. You
+  #  can optionally provide `exceptions`, which should be a map (dict) mapping
+  #  column headers onto types. These are taken as the definitive types for
+  #  the column specified and are *not* checked.
+  #
+  def inferTableSchema(self, tab, exceptions=None):
+    ncols = len(tab.headers)
+    schema = []
+    for i in range(ncols):
+      col_type = "INTEGER"
+      if exceptions is not None and tab.headers[i] in exceptions:
+        col_type = exceptions[tab.headers[i]]
+      else:
+        for j in range(min(20, len(tab.rows))):
+          try:
+            x = int(tab.rows[j][i])
+          except ValueError:
+            col_type = "TEXT"
+            break
+      schema.append({'name': tab.headers[i], 'type': col_type})
+    return schema
+
   ## tablesFromLines
   #
   #  Parses a list of lines from a BBS meta .txt file and produces a list of
@@ -71,7 +97,7 @@ class TableFactory:
   #      and has length equal to or exceeding the widest cell in the column
   #    * a table may contain no lines consisting only of whitespace
   #  
-  def tablesFromLines(self, lines, table_name, table_ct=0):
+  def tablesFromLines(self, lines, table_name, table_ct=0, schema_exceptions=None):
     tabs = []
 
     # Find the horizontal rule to figure out the column spacing. If there is
@@ -116,7 +142,11 @@ class TableFactory:
       for col_width in col_widths:
         cell = rline[offset:offset+col_width].strip().decode('latin-1')
         cells.append(cell)
-        offset += col_width
+
+        # incr offset to move to next column; add one to skip space between
+        # columns
+        offset += (col_width + 1)
+        
       table_rows.append(tuple(cells))
 
     # Append a new table object to the list and return
@@ -124,7 +154,10 @@ class TableFactory:
       tab_name = "{}{:02}".format(table_name, table_ct)
     else:
       tab_name = table_name
-    tabs.append(Table(tab_name, heads, table_rows))
+
+    new_tab = Table(tab_name, heads, table_rows)
+    new_tab.schema = self.inferTableSchema(new_tab, schema_exceptions)
+    tabs.append(new_tab)
     return tabs
 
 
@@ -133,8 +166,21 @@ class TableFactory:
   #  A convenience wrapper to parse a BBS meta .txt file directly. It uses the
   #  file name as the table name.
   #
-  def tablesFromFile(self, tab_file):
+  def tablesFromFile(self, tab_file, schema_exceptions=None):
     with open(tab_file, 'r') as f:
       lines = f.readlines()
     tab_name = '_'.join(os.path.basename(tab_file).split('.')[:-1])
-    return self.tablesFromLines(lines, tab_name)
+    return self.tablesFromLines(lines, tab_name, schema_exceptions=schema_exceptions)
+
+
+  ## tableFromData
+  #
+  #  A convenient way to create a table object and automatically set the
+  #  schema if you already have a list of headers and rows.
+  #
+  def tableFromData(self, tab_name, headers, rows, schema_exceptions=None):
+    new_tab = Table(tab_name, headers, rows)
+    new_tab.schema = self.inferTableSchema(new_tab, exceptions=schema_exceptions)
+    return new_tab
+    
+    

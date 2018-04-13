@@ -60,12 +60,27 @@ class BBS:
     # Database configuration stuff
     self.DB = os.path.join(self.DIR, "bird_survey_db.sqlite3")
     self.fifty_stop_table = "fifty_stops"
+    self.fifty_stop_gather_table = "fifty_stops_gather"
     self.ID_VAR = "id"
     self.FIFTY_STOP_TEXT_COLS = [
-        "RouteDataID", "countrynum", "statenum", "Route", "RPID", "year", "AOU"
+        {'name': "RouteDataID", 'type': "INTEGER"},
+        {'name': "countrynum", 'type': "INTEGER"},
+        {'name': "statenum", 'type': "INTEGER"},
+        {'name': "Route", 'type': "INTEGER"},
+        {'name': "RPID", 'type': "INTEGER"},
+        {'name': "year", 'type': "INTEGER"},
+        {'name': "AOU", 'type': "INTEGER"}
         ]
-    self.FIFTY_STOP_STOP_COLS = [ "Stop{}".format(i) for i in range(1,51) ]
+    self.FIFTY_STOP_STOP_COLS = [{'name': "Stop{}".format(i), 'type': "INTEGER"} for i in range(1,51)]
+    self.FIFTY_STOP_GATHER_STOP_COLS = [{'name': "Stop", 'type': "INTEGER"},
+                                        {'name': "Count", 'type': "INTEGER"}]
     self.FIFTY_STOP_COLS = self.FIFTY_STOP_TEXT_COLS + self.FIFTY_STOP_STOP_COLS
+    self.FIFTY_STOP_GATHER_COLS = self.FIFTY_STOP_TEXT_COLS + self.FIFTY_STOP_GATHER_STOP_COLS
+
+    self.schema_exceptions = {
+        'StartTime': "TEXT",
+        'EndTime': "TEXT"
+        }
 
 
   ## initDirectories
@@ -169,42 +184,72 @@ class BBS:
     self.fetchMetaTxtFiles()
     self.fetchMetaCsvFiles()
 
-  def createFiftyStopTable(self):
+  def createFiftyStopTables(self):
     con = sqlite3.connect(self.DB)
     cur = con.cursor()
 
-    print("Creating table...")
+    # SQL commands
     create_cmd = "CREATE TABLE IF NOT EXISTS {tn} ({id_name} INTEGER PRIMARY KEY)"
+    add_col_cmd = "ALTER TABLE {tn} ADD COLUMN '{cn}' {ct}"
+    insert_cmd = "INSERT INTO {tn} ({cns}) VALUES ({qs})"
+    
+    # Create the normal Fifty Stop Table
+    print("Creating Fifty Stop table (spread)...")
     cur.execute(create_cmd.format(tn=self.fifty_stop_table, id_name=self.ID_VAR))
 
     print("Adding columns...")
-    add_col_cmd = "ALTER TABLE {tn} ADD COLUMN '{cn}' {ct}"
-    for col in self.FIFTY_STOP_TEXT_COLS:
-      cur.execute(add_col_cmd.format(tn=self.fifty_stop_table, cn=col, ct="TEXT"))
-    for col in self.FIFTY_STOP_STOP_COLS:
-      cur.execute(add_col_cmd.format(tn=self.fifty_stop_table, cn=col, ct="INTEGER"))
+    for col in self.FIFTY_STOP_COLS:
+      cur.execute(add_col_cmd.format(tn=self.fifty_stop_table, cn=col['name'], ct=col['type']))
+
+    # Create the gathered Fifty Stop Table
+    print("Creating Fifty Stop table (gather)...")
+    cur.execute(create_cmd.format(tn=self.fifty_stop_gather_table, id_name=self.ID_VAR))
+
+    print("Adding columns...")
+    for col in self.FIFTY_STOP_GATHER_COLS:
+      cur.execute(add_col_cmd.format(tn=self.fifty_stop_gather_table, cn=col['name'], ct=col['type']))
 
     csv_files = glob.glob(os.path.join(self.FIFTY_STOP_DIR, '*.csv'))
     for csv_file in csv_files:
-      db_rows = []
+      db_rows_spread = []
+      db_rows_gather = []
       print("Parsing CSV file {}".format(csv_file))
       with open(csv_file, 'rb') as f:
         rows = csv.DictReader(f)
         for row in rows:
-          db_rows.append(tuple([row[key] for key in rows.fieldnames]))
 
-      print("Inserting {} records into the database...".format(len(db_rows)))
-      insert_command = "INSERT INTO {tn} ({cns}) VALUES ({qs})".format(
+          # Spread rows are good to insert as-is
+          db_rows_spread.append(tuple([row[key].strip() for key in rows.fieldnames]))
+
+          # For gather rows we need to create a new row for each stop
+          for i in range(1, 51):
+            row_fields = [row[col['name']].strip() for col in self.FIFTY_STOP_TEXT_COLS]
+            stop_key = "Stop{}".format(i)
+            row_fields += [i, row[stop_key].strip()]
+            db_rows_gather.append(tuple(row_fields))
+
+      
+      print("Inserting {} records into the database (spread)...".format(len(db_rows_spread)))
+      insert_command_spread = insert_cmd.format(
           tn=self.fifty_stop_table,
-          cns=', '.join(["'{}'".format(c) for c in self.FIFTY_STOP_COLS]),
+          cns=', '.join(["'{}'".format(c['name']) for c in self.FIFTY_STOP_COLS]),
           qs=', '.join(['?' for i in self.FIFTY_STOP_COLS]))
-      cur.executemany(insert_command, db_rows)
+      cur.executemany(insert_command_spread, db_rows_spread)
+
+      print("Inserting {} records into the database (gather)...".format(len(db_rows_gather)))
+      insert_command_gather = insert_cmd.format(
+          tn=self.fifty_stop_gather_table,
+          cns=', '.join(["'{}'".format(c['name']) for c in self.FIFTY_STOP_GATHER_COLS]),
+          qs=', '.join(['?' for i in self.FIFTY_STOP_GATHER_COLS]))
+      cur.executemany(insert_command_gather, db_rows_gather)
+      
       print("Records inserted.")
 
     print("Committing changes...")
     con.commit()
     con.close()
     print("All records committed.")
+   
 
 
   def createMetaTxtTables(self):
@@ -213,7 +258,7 @@ class BBS:
 
     txt_files = glob.glob(os.path.join(self.META_DIR, '*.txt'))
     for txt_file in txt_files:
-      tabs = table.TableFactory().tablesFromFile(txt_file)
+      tabs = table.TableFactory().tablesFromFile(txt_file, self.schema_exceptions)
       for tab in tabs:
         print("Creating table for {}...".format(os.path.basename(txt_file)))
         create_cmd = "CREATE TABLE IF NOT EXISTS {tn} ({id_name} INTEGER PRIMARY KEY)"
@@ -221,10 +266,10 @@ class BBS:
           tn=tab.name, id_name=self.ID_VAR))
 
         print("Adding columns...")
-        for col in tab.headers:
+        for col in tab.schema:
           try:
             cur.execute("ALTER TABLE {tn} ADD COLUMN '{cn}' {ct}"\
-                      .format(tn=tab.name, cn=col, ct="TEXT"))
+                      .format(tn=tab.name, cn=col['name'], ct=col['type']))
           except sqlite3.OperationalError as e:
             print("WARNING: {}".format(e))
 
@@ -257,26 +302,30 @@ class BBS:
         db_headers = table.TableFactory().cleanHeaders(rows.fieldnames)
         db_rows = []
         for row in rows:
-          db_rows.append(tuple([row[key].decode('latin-1') for key in rows.fieldnames]))
+          # text is encoded as 'latin-1' and the CSV fields *may* contain
+          # leading and/or trailing whitespace
+          db_rows.append(tuple([row[key].decode('latin-1').strip() for key in rows.fieldnames]))
+
+      tab = table.TableFactory().tableFromData(tab_name, db_headers, db_rows, self.schema_exceptions)
 
       print("Creating table for {}...".format(os.path.basename(csv_file)))
       create_cmd = "CREATE TABLE IF NOT EXISTS {tn} ({id_name} INTEGER PRIMARY KEY)"
-      cur.execute(create_cmd.format(tn=tab_name, id_name=self.ID_VAR))
+      cur.execute(create_cmd.format(tn=tab.name, id_name=self.ID_VAR))
 
       print("Adding columns...")
-      for col in db_headers:
+      for col in tab.schema:
         try:
           cur.execute("ALTER TABLE {tn} ADD COLUMN '{cn}' {ct}"\
-                    .format(tn=tab_name, cn=col, ct="TEXT"))
+                    .format(tn=tab.name, cn=col['name'], ct=col['type']))
         except sqlite3.OperationalError as e:
           print("WARNING: {}".format(e))
 
-      print("Inserting {} records into the database...".format(len(db_rows)))
+      print("Inserting {} records into the database...".format(len(tab.rows)))
       insert_command = "INSERT INTO {tn} ({cns}) VALUES ({qs})".format(
-          tn=tab_name,
-          cns=', '.join(["'{}'".format(c) for c in db_headers]),
-          qs=', '.join(['?' for i in db_headers]))
-      cur.executemany(insert_command, db_rows)
+          tn=tab.name,
+          cns=', '.join(["'{}'".format(c['name']) for c in tab.schema]),
+          qs=', '.join(['?' for i in tab.schema]))
+      cur.executemany(insert_command, tab.rows)
       print("Records inserted.")
 
     print("Committing changes...")
@@ -285,7 +334,7 @@ class BBS:
     print("All records committed.")
 
   def createAllTables(self):
-    self.createFiftyStopTable()
+    self.createFiftyStopTables()
     self.createMetaTxtTables()
     self.createMetaCsvTables()
 
